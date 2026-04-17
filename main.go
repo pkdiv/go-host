@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"go-host/security"
 	"net"
 	"time"
 )
@@ -27,14 +28,23 @@ func StartServer() error {
 
 	fmt.Println("DNS Server running on :53")
 
+	limiter := security.NewClientLimiter(1*time.Minute, 10)
+
 	for {
 		buffer := make([]byte, 4096)
-		n, addr, err := conn.ReadFromUDP(buffer)
+		n, clientAddr, err := conn.ReadFromUDP(buffer)
 		if err != nil {
 			return err
 		}
 
 		fmt.Println("Request received from client")
+
+		if !limiter.Allow(clientAddr.IP.String()) {
+			fmt.Println("Client rate limited")
+			// TODO: send proper dns response
+			conn.WriteToUDP([]byte("Client rate limited"), clientAddr)
+			continue
+		}
 
 		recivedData := buffer[:n]
 		resp, err := UpstreamDNS(recivedData)
@@ -43,7 +53,7 @@ func StartServer() error {
 			continue
 		}
 
-		_, err = conn.WriteToUDP(resp, addr)
+		_, err = conn.WriteToUDP(resp, clientAddr)
 		if err != nil {
 			fmt.Println(err)
 			continue
