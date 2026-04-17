@@ -4,8 +4,15 @@ import (
 	"fmt"
 	"go-host/security"
 	"net"
+	"sync"
 	"time"
 )
+
+var bufPool = sync.Pool{
+	New: func() interface{} {
+		return make([]byte, 4096)
+	},
+}
 
 func main() {
 	if err := StartServer(); err != nil {
@@ -28,38 +35,14 @@ func StartServer() error {
 
 	fmt.Println("DNS Server running on :53")
 
-	limiter := security.NewClientLimiter(1*time.Minute, 10)
-
 	for {
-		buffer := make([]byte, 4096)
+		buffer := bufPool.Get().([]byte)
 		n, clientAddr, err := conn.ReadFromUDP(buffer)
 		if err != nil {
 			return err
 		}
-
 		fmt.Println("Request received from client")
-
-		if !limiter.Allow(clientAddr.IP.String()) {
-			fmt.Println("Client rate limited")
-			// TODO: send proper dns response
-			conn.WriteToUDP([]byte("Client rate limited"), clientAddr)
-			continue
-		}
-
-		recivedData := buffer[:n]
-		resp, err := UpstreamDNS(recivedData)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		_, err = conn.WriteToUDP(resp, clientAddr)
-		if err != nil {
-			fmt.Println(err)
-			continue
-		}
-
-		fmt.Println("Response sent to client")
+		go HandleRequest(buffer[:n], clientAddr, conn)
 
 	}
 
@@ -95,4 +78,32 @@ func UpstreamDNS(data []byte) ([]byte, error) {
 	fmt.Printf("Response received from upstream DNS: %d bytes\n", n)
 
 	return respBuffer[:n], nil
+}
+
+func HandleRequest(data []byte, clientAddr *net.UDPAddr, conn *net.UDPConn) {
+
+	limiter := security.NewClientLimiter(1*time.Minute, 10)
+
+	if !limiter.Allow(clientAddr.IP.String()) {
+		fmt.Println("Client rate limited")
+		// TODO: send proper dns response
+		conn.WriteToUDP([]byte("Client rate limited"), clientAddr)
+		return
+	}
+
+	recivedData := data
+	resp, err := UpstreamDNS(recivedData)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	_, err = conn.WriteToUDP(resp, clientAddr)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+
+	fmt.Println("Response sent to client")
+
 }
