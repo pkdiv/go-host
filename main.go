@@ -45,11 +45,14 @@ func StartServer() error {
 		fmt.Println("Request received from client")
 
 		domain := blocker.ExtractDomain(buffer[:n])
-		if blocker.IsBlocked(domain) {
-			fmt.Println("Domain blocked: ", domain)
-			// TODO: send proper dns response
-			conn.WriteToUDP([]byte("Domain blocked"), clientAddr)
-			continue
+		fmt.Println("Domain: ", domain)
+		if !blocker.IsAllowed(domain) {
+			if blocker.IsBlocked(domain) {
+				fmt.Println("Domain blocked: ", domain)
+				// TODO: send proper dns response
+				conn.WriteToUDP([]byte("Domain blocked"), clientAddr)
+				continue
+			}
 		}
 
 		go HandleRequest(buffer[:n], clientAddr, conn)

@@ -74,3 +74,38 @@ func LoadBlockList() ([]string, error) {
 	return blockedList, nil
 
 }
+
+func LoadAllowList() ([]string, error) {
+
+	file, err := os.Open("allow_domains")
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var allowList []string
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		allowList = append(allowList, scanner.Text())
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return allowList, nil
+
+}
+
+func IsAllowed(domain string) bool {
+
+	allowList, err := LoadAllowList()
+	if err != nil {
+		fmt.Println(err)
+		return false
+	}
+
+	return slices.Contains(allowList, domain)
+
+}
