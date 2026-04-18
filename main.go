@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"go-host/blocker"
 	"go-host/security"
 	"net"
 	"sync"
@@ -33,7 +34,7 @@ func StartServer() error {
 	}
 	defer conn.Close()
 
-	fmt.Println("DNS Server running on :53")
+	fmt.Println("DNS Server running on port ", addr.Port)
 
 	for {
 		buffer := bufPool.Get().([]byte)
@@ -42,6 +43,15 @@ func StartServer() error {
 			return err
 		}
 		fmt.Println("Request received from client")
+
+		domain := blocker.ExtractDomain(buffer[:n])
+		if blocker.IsBlocked(domain) {
+			fmt.Println("Domain blocked: ", domain)
+			// TODO: send proper dns response
+			conn.WriteToUDP([]byte("Domain blocked"), clientAddr)
+			continue
+		}
+
 		go HandleRequest(buffer[:n], clientAddr, conn)
 
 	}
