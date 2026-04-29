@@ -16,6 +16,12 @@ Think of it as a self-hosted, programmable DNS filter — great for homelabs, lo
 
 ---
 
+## Why I Built This
+
+I built go-host to understand how DNS resolution actually works under the hood — to understand how packets are parsed, forwarded, and filtered. Building it in Go was a deliberate choice to get comfortable with the language that powers most cloud-native tooling. It's written entirely with Go's standard library — no third-party dependencies — partly as a challenge, and partly because recent supply chain attacks made me want to understand what it really means to ship software with a minimal trust surface.
+
+---
+
 ## Features
 
 - **DNS Forwarding** — Proxies queries to an upstream DNS server (defaults to `1.1.1.1:53`)
