@@ -159,7 +159,7 @@ nameserver 127.0.0.1
 
 ## Roadmap
 
-- [ ] Configurable upstream DNS via config file or CLI flag
+- [ ] Configurable upstream DNS via config file 
 - [ ] DNS-over-TLS (DoT) support
 - [ ] Web UI for query log viewing and blocklist management
 - [ ] Support for blocklist subscriptions (e.g. hosts-format files)

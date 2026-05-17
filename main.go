@@ -6,9 +6,16 @@ import (
 	"go-host/logs"
 	"go-host/security"
 	"net"
+	"os"
 	"sync"
 	"time"
+
+	"go.yaml.in/yaml/v3"
 )
+
+type Config struct {
+	UpstreamDNS []string `yaml:"UpstreamDNS"`
+}
 
 type RCODE int
 
@@ -27,7 +34,15 @@ var bufPool = sync.Pool{
 	},
 }
 
+var AppConfig Config
+
 func main() {
+
+	if err := LoadConfig(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+
 	if err := StartServer(); err != nil {
 		fmt.Println(err)
 	}
@@ -75,11 +90,11 @@ func StartServer() error {
 
 func UpstreamDNS(data []byte) ([]byte, error) {
 
-	UpstreamDNS := "1.1.1.1:53"
+	UpstreamDNS := SelectUpstreamDNS()
 
 	upstreamConn, err := net.DialTimeout("udp", UpstreamDNS, 5*time.Second)
 	if err != nil {
-		fmt.Printf("Error connecting to upstream DNS: %s", UpstreamDNS)
+		fmt.Printf("Error connecting to upstream DNS: %s\n", UpstreamDNS)
 		return nil, err
 	}
 	defer upstreamConn.Close()
@@ -237,4 +252,38 @@ func blockResponse(data []byte, rcode RCODE) []byte {
 	resp = resp[:offset+4]
 
 	return resp
+}
+
+func LoadConfig() error {
+
+	content, err := os.ReadFile("config.yaml")
+	if err != nil {
+		return err
+	}
+
+	if err := yaml.Unmarshal(content, &AppConfig); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func SelectUpstreamDNS() string {
+
+	if len(AppConfig.UpstreamDNS) > 0 {
+
+		for _, upstreamDNS := range AppConfig.UpstreamDNS {
+			upstreamConn, err := net.DialTimeout("udp", upstreamDNS+":53", 5*time.Second)
+			if err != nil {
+				fmt.Printf("Error connecting to upstream DNS: %s\n", upstreamDNS)
+				continue
+			}
+			defer upstreamConn.Close()
+
+			return upstreamDNS + ":53"
+		}
+	}
+
+	return "1.1.1.1:53"
+
 }
