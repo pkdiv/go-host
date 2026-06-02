@@ -15,6 +15,12 @@ import (
 
 type Config struct {
 	UpstreamDNS []string `yaml:"UpstreamDNS"`
+	Rotate      bool     `yaml:"Rotate"`
+}
+
+type DNSRotateSelector struct {
+	lastUsedDNSIndex int
+	mu               sync.Mutex
 }
 
 type RCODE int
@@ -35,6 +41,7 @@ var bufPool = sync.Pool{
 }
 
 var AppConfig Config
+var dnsSelector = &DNSRotateSelector{}
 
 func main() {
 
@@ -90,7 +97,7 @@ func StartServer() error {
 
 func UpstreamDNS(data []byte) ([]byte, error) {
 
-	UpstreamDNS := SelectUpstreamDNS()
+	UpstreamDNS := SelectUpstreamDNS(dnsSelector) + ":53"
 
 	upstreamConn, err := net.DialTimeout("udp", UpstreamDNS, 5*time.Second)
 	if err != nil {
@@ -268,22 +275,19 @@ func LoadConfig() error {
 	return nil
 }
 
-func SelectUpstreamDNS() string {
+func SelectUpstreamDNS(d *DNSRotateSelector) string {
 
-	if len(AppConfig.UpstreamDNS) > 0 {
-
-		for _, upstreamDNS := range AppConfig.UpstreamDNS {
-			upstreamConn, err := net.DialTimeout("udp", upstreamDNS+":53", 5*time.Second)
-			if err != nil {
-				fmt.Printf("Error connecting to upstream DNS: %s\n", upstreamDNS)
-				continue
-			}
-			defer upstreamConn.Close()
-
-			return upstreamDNS + ":53"
-		}
+	if len(AppConfig.UpstreamDNS) == 0 {
+		return "1.1.1.1"
 	}
 
-	return "1.1.1.1:53"
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
+	if AppConfig.Rotate {
+		d.lastUsedDNSIndex = (d.lastUsedDNSIndex + 1) % len(AppConfig.UpstreamDNS)
+		return AppConfig.UpstreamDNS[d.lastUsedDNSIndex]
+	}
+
+	return AppConfig.UpstreamDNS[0]
 }

@@ -3,5 +3,6 @@ UpstreamDNS:
 - 8.8.4.4
 - 9.9.9.9
 - 1.1.1.1
+Rotate: true
 
 
